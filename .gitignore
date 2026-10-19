@@ -1,0 +1,16 @@
+# Données et fichiers volumineux
+OLD/
+data/
+Ribonanza_bpp_files/
+eterna_openknot_metadata/
+rhofold_pdbs/
+
+# Fichiers CSV
+*.csv
+
+# Fichiers temporaires Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
