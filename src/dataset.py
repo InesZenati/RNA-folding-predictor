@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import torch
@@ -7,10 +6,8 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from embedding import pad_sequences
 
-
 # Types d'expérience
 experiment_vocab = {"DMS_MaP": 0, "2A3_MaP": 1}
-
 
 # Récupérer les colonnes de réactivité dans le bon ordre
 def get_reactivity_columns(df):
@@ -112,7 +109,7 @@ if __name__ == "__main__":
     train_df = df[df["sequence_id"].isin(train_ids)]
     val_df = df[df["sequence_id"].isin(val_ids)]
 
-    print("\nNombre de lignes train :", len(train_df))
+    print("Nombre de lignes train :", len(train_df))
     print("Nombre de lignes validation :", len(val_df))
 
     # Créer les datasets PyTorch
@@ -165,6 +162,6 @@ if __name__ == "__main__":
 
         assert not np.any(invalid), f"Mesures hors séquence dans les lignes {start} à {start + len(chunk) - 1}"
 
-    print("Aucune mesure trouvée au-delà des séquences !")
+    print("Aucune mesure trouvée au-delà des séquences")
  
-    print("\nTous les tests du Dataset sont réussis !")
+    print("Tous les tests du Dataset sont réussis")

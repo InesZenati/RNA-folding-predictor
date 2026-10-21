@@ -15,10 +15,12 @@ from optparse import OptionParser
 # Paramètres d'entraînement
 data_path = "/home/caop/RNA_ribonanza/small_data/train_data_QUICK_START.csv"
 batch_size = 32
-epochs = 1
+epochs = 30
 learning_rate = 0.001
 max_train_batches = 10
 max_val_batches = 5
+patience = 5
+min_delta = 0.0001
 
 
 # Choisir GPU si disponible, sinon CPU
@@ -235,20 +237,65 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # Entraînement
+        # Entraînement avec Early Stopping
+    best_val_mae = float("inf")
+    epochs_without_improvement = 0
+
+    best_model_path = os.path.join(options.output_dir, "rna_transformer_best.pth")
+
     for epoch in range(epochs):
 
+        # Entraînement
         train_loss = train_one_epoch(model, train_loader, optimizer, device, max_train_batches)
+
+        # Validation
         val_loss = validate(model, val_loader, device, max_val_batches)
 
-        #print(f"Epoch {epoch + 1}/{epochs} - Train Loss : {train_loss:.4f} - Val Loss : {val_loss:.4f}")
-        print(f"Epoch {epoch + 1}/{epochs} - Train MAE : {train_loss:.4f} - Validation MAE : {val_loss:.4f}")
-    
-        # Sauvegarder le modèle
-        model_path = os.path.join(options.output_dir, "rna_transformer.pth")
-        torch.save(model.state_dict(), model_path)
-        print("Entraînement terminé !")
-        print(f"Modèle sauvegardé dans : {model_path}")
+        print(f"Epoch {epoch + 1}/{epochs} - "
+              f"Train MAE : {train_loss:.4f} - "
+              f"Validation MAE : {val_loss:.4f}")
 
-        # Sauvegarder les prédictions de validation
-        predictions_path = os.path.join(options.output_dir, "validation_predictions.csv")
-        save_validation_predictions(model=model, val_df=val_df.head(20), reactivity_cols=reactivity_cols, device=device, output_path=predictions_path)
+        # Vérifier si la Validation MAE s'améliore
+        if val_loss < best_val_mae - min_delta:
+
+            best_val_mae = val_loss
+            epochs_without_improvement = 0
+
+            # Sauvegarder le meilleur modèle
+            torch.save(model.state_dict(), best_model_path)
+
+            print(f"Meilleur modèle sauvegardé ! "f"Validation MAE : {best_val_mae:.4f}")
+
+        else:
+            epochs_without_improvement += 1
+            print(f"Pas d'amélioration : "
+                  f"{epochs_without_improvement}/{patience}")
+
+        # Early Stopping
+        if epochs_without_improvement >= patience:
+            print(f"Early stopping à l'epoch {epoch + 1}. "
+                  f"Meilleure Validation MAE : {best_val_mae:.4f}")
+            break
+    # Recharger le meilleur modèle
+    model.load_state_dict(
+        torch.load(best_model_path, map_location=device, weights_only=True))
+
+    print(f"Meilleur modèle rechargé : MAE = {best_val_mae:.4f}")
+
+    # Sauvegarder le modèle final (meilleurs poids)
+    model_path = os.path.join(options.output_dir, "rna_transformer.pth")
+
+    torch.save(model.state_dict(), model_path)
+
+    print("Entraînement terminé !")
+    print(f"Modèle sauvegardé dans : {model_path}")
+
+    # Sauvegarder les prédictions de validation
+    predictions_path = os.path.join(options.output_dir, "validation_predictions.csv")
+
+    save_validation_predictions(
+        model=model,
+        val_df=val_df.head(20),
+        reactivity_cols=reactivity_cols,
+        device=device,
+        output_path=predictions_path)
