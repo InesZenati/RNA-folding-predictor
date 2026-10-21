@@ -11,7 +11,7 @@ class RNATransformer(nn.Module):
     def __init__(self, vocab_size=5, embedding_dim=16, num_heads=4, num_layers=2, dropout=0.1):
         super().__init__()
 
-        # Embedding des nucléotides et encodage positionnel
+        # Embedding des nucléotides, encodage positionnel et type d'expérience
         self.embedding = RNAEmbedding(vocab_size=vocab_size, embedding_dim=embedding_dim)
 
         # Une couche Transformer
@@ -20,20 +20,13 @@ class RNATransformer(nn.Module):
         # Empiler plusieurs couches Transformer
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        # Embedding du type d'expérience : DMS ou 2A3
-        self.experiment_embedding = nn.Embedding(num_embeddings=2, embedding_dim=embedding_dim)
-
         # Couche finale : prédire une réactivité par nucléotide
         self.output_layer = nn.Linear(embedding_dim, 1)
 
     def forward(self, padded, padding_mask, experiment_type):
-
-        # Transformer les tokens en embeddings
-        x = self.embedding(padded)
-
-        # Ajouter l'information sur le type d'expérience
-        experiment_emb = self.experiment_embedding(experiment_type)
-        x = x + experiment_emb.unsqueeze(1)
+        
+        #  Embedding : nucléotides + positions + expérience
+        x = self.embedding(padded, experiment_type)
 
         # Appliquer le Transformer en ignorant les positions PAD
         x = self.transformer(x, src_key_padding_mask=padding_mask)
@@ -83,5 +76,24 @@ if __name__ == "__main__":
     # Vérifications automatiques
     assert predictions.shape == padded.shape
     assert torch.all(predictions[padding_mask] == 0)
+    assert torch.isfinite(predictions).all()
+    assert len(model.transformer.layers) == 2
 
-    print("\nTous les tests du Transformer sont réussis !")
+    print("Architecture du Transformer :")
+
+    for i, layer in enumerate(model.transformer.layers):
+        print(f"Transformer Encoder Layer {i + 1}")
+
+        # Multi-Head Attention
+        print("Multi-Head Attention :", layer.self_attn)
+        print("Nombre de têtes :", layer.self_attn.num_heads)
+
+        # Feed-Forward Network
+        print("FFN couche 1 :", layer.linear1)
+        print("FFN couche 2 :", layer.linear2)
+
+        # LayerNorm
+        print("LayerNorm 1 :", layer.norm1)
+        print("LayerNorm 2 :", layer.norm2)
+
+    print("Tests passés")

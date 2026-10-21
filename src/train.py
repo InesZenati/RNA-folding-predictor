@@ -1,4 +1,5 @@
 from tqdm import tqdm
+import numpy as np
 import os
 import pandas as pd
 import torch
@@ -8,6 +9,7 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from dataset import RNADataset, collate_fn, get_reactivity_columns
 from model import RNATransformer
+from optparse import OptionParser
 
 
 # Paramètres d'entraînement
@@ -15,8 +17,8 @@ data_path = "/home/caop/RNA_ribonanza/small_data/train_data_QUICK_START.csv"
 batch_size = 32
 epochs = 1
 learning_rate = 0.001
-max_train_batches = None
-max_val_batches = None
+max_train_batches = 10
+max_val_batches = 5
 
 
 # Choisir GPU si disponible, sinon CPU
@@ -101,8 +103,6 @@ def train_one_epoch(model, loader, optimizer, device, max_batches):
 
 
 # Évaluer le modèle sur la validation
-
-
 def validate(model, loader, device, max_batches):
     model.eval()
 
@@ -152,8 +152,56 @@ def validate(model, loader, device, max_batches):
 
     return val_mae
 
+def save_validation_predictions(model, val_df, reactivity_cols, device, output_path):
+
+    model.eval()
+
+    # Matrice pour stocker toutes les prédictions
+    predictions_array = np.full((len(val_df), len(reactivity_cols)), np.nan, dtype=np.float32)
+
+    from embedding import pad_sequences
+
+    with torch.no_grad():
+
+        for i, (_, row) in enumerate(tqdm(
+            val_df.iterrows(),
+            total=len(val_df),
+            desc="Prédictions validation")):
+
+            sequence = row["sequence"]
+            padded, padding_mask = pad_sequences([sequence])
+            padded = padded.to(device)
+            padding_mask = padding_mask.to(device)
+
+            exp_id = 0 if row["experiment_type"] == "DMS_MaP" else 1
+
+            experiment_type = torch.tensor([exp_id], device=device)
+
+            predictions = model(padded, padding_mask, experiment_type)
+
+            predictions = predictions[0].cpu().numpy()
+
+            n = min(len(sequence), len(reactivity_cols))
+
+            predictions_array[i, :n] = predictions[:n]
+
+    # Construire les résultats en une seule fois
+    metadata = val_df[["sequence_id", "sequence", "experiment_type"]].reset_index(drop=True)
+    reactivity_df = pd.DataFrame(predictions_array, columns=reactivity_cols)
+    result_df = pd.concat([metadata, reactivity_df], axis=1)
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    result_df.to_csv(output_path, index=False, na_rep="NaN")
+    print(f"Prédictions sauvegardées dans : {output_path}")
+
 # Programme principal
 if __name__ == "__main__":
+
+    parser = OptionParser()
+    parser.add_option("--output_dir", dest="output_dir", default="results", help="Dossier de sauvegarde des résultats")
+    (options, args) = parser.parse_args()
+
+    # Créer le dossier de sortie
+    os.makedirs(options.output_dir, exist_ok=True)
 
     # Charger les données nécessaires
     df = pd.read_csv(data_path)
@@ -194,9 +242,13 @@ if __name__ == "__main__":
 
         #print(f"Epoch {epoch + 1}/{epochs} - Train Loss : {train_loss:.4f} - Val Loss : {val_loss:.4f}")
         print(f"Epoch {epoch + 1}/{epochs} - Train MAE : {train_loss:.4f} - Validation MAE : {val_loss:.4f}")
-    # Sauvegarder le modèle
-    os.makedirs("models", exist_ok=True)
-    torch.save(model.state_dict(), "models/rna_transformer_test.pth")
+    
+        # Sauvegarder le modèle
+        model_path = os.path.join(options.output_dir, "rna_transformer.pth")
+        torch.save(model.state_dict(), model_path)
+        print("Entraînement terminé !")
+        print(f"Modèle sauvegardé dans : {model_path}")
 
-    print("\nEntraînement terminé !")
-    print("Modèle sauvegardé dans models/rna_transformer_test.pth")
+        # Sauvegarder les prédictions de validation
+        predictions_path = os.path.join(options.output_dir, "validation_predictions.csv")
+        save_validation_predictions(model=model, val_df=val_df.head(20), reactivity_cols=reactivity_cols, device=device, output_path=predictions_path)
