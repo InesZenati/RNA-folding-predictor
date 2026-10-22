@@ -239,3 +239,7 @@ __marimo__/
 # macOS
 >>>>>>> origin/main
 .DS_Store
+*.zip
+bpp_2000/
+*.csv
+*.png
