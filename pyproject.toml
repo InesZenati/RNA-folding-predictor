@@ -1,0 +1,31 @@
+[project]
+name = "rna-folding-predictor"
+version = "0.1.0"
+description = "Prédiction de la réactivité chimique de l'ARN (DMS_MaP / 2A3_MaP) sur le jeu de données Stanford Ribonanza RNA Folding"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+
+# Dépendances de base : exploration des données + baselines Ridge (scikit-learn)
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "matplotlib>=3.8",
+    "scikit-learn>=1.4",
+]
+
+[dependency-groups]
+# Modèle Transformer (notebook transformers_bpp.ipynb)
+deep = [
+    "tensorflow>=2.16",
+    "keras>=3.4",
+    "keras-hub>=0.16",
+]
+# Pour ouvrir les notebooks
+notebooks = [
+    "jupyterlab>=4.0",
+    "ipykernel>=6.29",
+]
+
+[tool.uv]
+# Projet de scripts : pas de paquet à construire/installer
+package = false
